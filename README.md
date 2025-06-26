@@ -247,6 +247,7 @@ echo "Browsers: $(curl -s http://localhost:8080/browsers | jq -r .count)"
 - [n8n Documentation](https://docs.n8n.io/)
 - [Playwright Documentation](https://playwright.dev/)
 - [Docker Compose Reference](https://docs.docker.com/compose/)
+- [n8n MCP Playwright 完全ガイド（Cursor IDE公式ブログ）](https://www.cursor-ide.com/blog/n8n-mcp-playwright-guide-2025)
 
 ## 🐛 バグレポート・機能要望
 
