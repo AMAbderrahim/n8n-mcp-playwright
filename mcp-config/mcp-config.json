@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "node",
+      "args": ["/app/server.js"],
+      "env": {
+        "MCP_PORT": "8080",
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}

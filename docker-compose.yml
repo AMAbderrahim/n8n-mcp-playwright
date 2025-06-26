@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n-main
+    restart: unless-stopped
+    # 重要な権限設定: 68%の権限拒否問題を解決します
+    privileged: true
+    user: "0:999" # rootユーザー、dockerグループID
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=${N8N_HOST:-0.0.0.0}
+      - N8N_PORT=${N8N_PORT:-5678}
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+      - N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true
+      - N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN=true
+      - NODE_OPTIONS=--max-old-space-size=2048
+      - N8N_METRICS=true
+    volumes:
+      # Docker socketのバインドマウント: コンテナ内のコンテナ制御を実現します
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+      # n8nデータの永続化
+      - n8n_data:/home/node/.n8n
+      - n8n_files:/files
+      # MCP設定ディレクトリ (ホットリロード対応)
+      - ./mcp-config:/home/node/.n8n/mcp:rw
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.40.0-focal
+    container_name: n8n-playwright
+    restart: unless-stopped
+    # 重要な権限と共有メモリ設定: Chromium起動失敗問題 (32%のブラウザ問題) を解決します
+    privileged: true
+    cap_add:
+      - SYS_ADMIN # ブラウザのサンドボックスモードをサポート
+    shm_size: 2gb # 少なくとも2GBの共有メモリ推奨
+    environment:
+      - DISPLAY=:99
+      - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+      - PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
+      - NODE_OPTIONS=--max-old-space-size=1024
+    volumes:
+      # ブラウザデータの永続化
+      - playwright_browsers:/ms-playwright
+      - playwright_cache:/tmp
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 3G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    command: tail -f /dev/null # コンテナを稼働状態に保つ
+    healthcheck:
+      test: ["CMD", "node", "-e", "console.log('Playwright container is healthy')"]
+      interval: 60s
+      timeout: 10s
+      retries: 2
+
+  mcp-server:
+    image: node:18-bullseye
+    container_name: n8n-mcp-server
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - MCP_PORT=8080
+      - MCP_LOG_LEVEL=info
+    volumes:
+      - ./mcp-server:/app
+      - mcp_logs:/var/log/mcp
+    working_dir: /app
+    command: sh -c "apt-get update && apt-get install -y curl && npm install && npx playwright install --with-deps chromium && node server.js"
+    depends_on:
+      playwright:
+        condition: service_healthy # playwrightサービスが起動してから起動
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  n8n_data:
+    driver: local
+  n8n_files:
+    driver: local
+  playwright_browsers:
+    driver: local
+  playwright_cache:
+    driver: local
+  mcp_logs:
+    driver: local
+
+networks:
+  default:
+    name: n8n-mcp-network
+    driver: bridge

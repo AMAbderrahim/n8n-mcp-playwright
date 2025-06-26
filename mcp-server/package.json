@@ -1,0 +1,20 @@
+{
+  "name": "n8n-mcp-playwright-server",
+  "version": "1.0.0",
+  "description": "MCP Server for n8n Playwright integration",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "playwright": "^1.40.0",
+    "express": "^4.18.2",
+    "winston": "^3.10.0",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
