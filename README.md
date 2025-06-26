@@ -7,6 +7,7 @@
 - **n8n**: ワークフロー自動化プラットフォーム (ポート5678)
 - **Playwright**: ブラウザ自動化ライブラリ (Chromium/Firefox/WebKit対応)
 - **MCP Server**: RESTful APIベースのPlaywright統合サーバー (ポート8080)
+- **SSE (Server-Sent Events)**: リアルタイムイベントストリーミング対応
 
 ## 🚀 クイックスタート
 
@@ -44,6 +45,9 @@ curl http://localhost:8080/health
 
 # 利用可能ツール一覧
 curl http://localhost:8080/tools
+
+# SSE (Server-Sent Events) 接続テスト
+curl -N -H "Accept: text/event-stream" http://localhost:8080/events
 ```
 
 ### 4. 停止
@@ -58,7 +62,7 @@ docker compose down -v
 
 ## 🛠️ 利用可能なPlaywrightツール
 
-MCPサーバーは以下の7つのツールを提供します:
+MCPサーバーは以下の7つのツールを提供し、すべての操作がSSE経由でリアルタイム通知されます:
 
 | ツール名 | 説明 | 必須パラメータ |
 |---|---|---|
@@ -108,6 +112,61 @@ curl -X POST http://localhost:8080/tools/execute \
   -d '{"name":"close_browser","arguments":{"browserId":"browser_xxx"}}'
 ```
 
+## 📡 Server-Sent Events (SSE) 機能
+
+MCPサーバーは全ての操作をリアルタイムでSSE経由で配信します。
+
+### SSE接続とイベント監視
+
+```bash
+# SSE接続 (リアルタイムイベント受信)
+curl -N -H "Accept: text/event-stream" http://localhost:8080/events
+```
+
+### 配信されるイベントタイプ
+
+| イベントタイプ | 説明 | 含まれるデータ |
+|---|---|---|
+| `connection` | SSE接続確立 | `clientId`, `message` |
+| `heartbeat` | 定期ハートビート (30秒毎) | `browsers`, `uptime` |
+| `browser_launched` | ブラウザ起動完了 | `browserId`, `browserType`, `headless` |
+| `navigation_completed` | ページ遷移完了 | `browserId`, `url` |
+| `element_clicked` | 要素クリック完了 | `browserId`, `selector` |
+| `text_typed` | テキスト入力完了 | `browserId`, `selector`, `text` |
+| `text_retrieved` | テキスト取得完了 | `browserId`, `selector`, `text` |
+| `screenshot_taken` | スクリーンショット撮影完了 | `browserId`, `filename`, `fullPage` |
+| `browser_closed` | ブラウザ終了完了 | `browserId` |
+
+### イベントデータ形式
+
+```json
+{
+  "type": "browser_launched",
+  "data": {
+    "browserId": "browser_1750922425428_gne5yb69y",
+    "browserType": "chromium",
+    "headless": true,
+    "message": "Browser launched successfully. Browser ID: browser_1750922425428_gne5yb69y"
+  },
+  "timestamp": "2025-06-26T07:15:28.287Z"
+}
+```
+
+### SSE テストクライアント
+
+HTMLベースのリアルタイムイベントビューアーが利用可能:
+
+```bash
+# テストクライアントを開く (ブラウザで)
+open mcp-server/sse-test.html
+```
+
+テストクライアント機能:
+- リアルタイムイベント表示
+- イベントタイプ別色分け
+- 接続状態管理
+- ハートビート監視
+
 ## 📊 サービス状態確認
 
 ```bash
@@ -120,6 +179,9 @@ docker compose exec mcp-server curl -f http://localhost:8080/health
 
 # 現在稼働中のブラウザ一覧
 curl http://localhost:8080/browsers
+
+# SSE接続クライアント数確認 (ヘルスチェックに含まれる)
+curl http://localhost:8080/health | jq '.sseClients'
 ```
 
 ## 🔧 トラブルシューティング
@@ -136,7 +198,7 @@ sudo usermod -aG docker $USER
 #### 2. ポート競合エラー
 以下のポートが使用されていないことを確認:
 - `5678`: n8n Web UI
-- `8080`: MCP Server API
+- `8080`: MCP Server API (REST + SSE)
 
 ```bash
 # ポート使用状況確認
@@ -226,7 +288,8 @@ n8n-mcp-playwright/
 │   └── mcp-config.json    # MCP設定ファイル
 └── mcp-server/
     ├── package.json       # Node.js依存関係
-    └── server.js          # RESTベースMCPサーバー
+    ├── server.js          # RESTベースMCPサーバー (SSE対応)
+    └── sse-test.html      # SSEテストクライアント
 ```
 
 ## 🔄 継続的な監視
@@ -240,6 +303,7 @@ echo "=== n8n MCP Playwright Health Check ==="
 echo "n8n: $(curl -s -o /dev/null -w "%{http_code}" http://localhost:5678)"
 echo "MCP Server: $(curl -s http://localhost:8080/health | jq -r .status)"
 echo "Browsers: $(curl -s http://localhost:8080/browsers | jq -r .count)"
+echo "SSE Clients: $(curl -s http://localhost:8080/health | jq -r .sseClients)"
 ```
 
 ## 📚 参考資料
