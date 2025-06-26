@@ -19,10 +19,97 @@ const logger = winston.createLogger({
 // ブラウザインスタンス管理
 const browsers = new Map();
 
+// SSE クライアント管理
+const sseClients = new Set();
+
 // Express サーバー設定
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// SSE エンドポイント
+app.get('/events', (req, res) => {
+  // SSE ヘッダーを設定
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Cache-Control'
+  });
+
+  // クライアントをセットに追加
+  sseClients.add(res);
+  
+  // 初期接続メッセージを送信
+  const welcomeEvent = {
+    type: 'connection',
+    data: {
+      message: 'Connected to Playwright MCP Server',
+      timestamp: new Date().toISOString(),
+      clientId: Math.random().toString(36).substr(2, 9)
+    }
+  };
+  
+  res.write(`data: ${JSON.stringify(welcomeEvent)}\n\n`);
+  
+  // 定期的なハートビートを送信
+  const heartbeatInterval = setInterval(() => {
+    if (res.connection && !res.connection.destroyed) {
+      const heartbeat = {
+        type: 'heartbeat',
+        data: {
+          timestamp: new Date().toISOString(),
+          browsers: browsers.size,
+          uptime: process.uptime()
+        }
+      };
+      res.write(`data: ${JSON.stringify(heartbeat)}\n\n`);
+    } else {
+      clearInterval(heartbeatInterval);
+      sseClients.delete(res);
+    }
+  }, 30000); // 30秒ごと
+
+  // クライアントが接続を閉じた時の処理
+  req.on('close', () => {
+    clearInterval(heartbeatInterval);
+    sseClients.delete(res);
+    logger.info('SSE client disconnected');
+  });
+
+  req.on('aborted', () => {
+    clearInterval(heartbeatInterval);
+    sseClients.delete(res);
+    logger.info('SSE client connection aborted');
+  });
+
+  logger.info('New SSE client connected');
+});
+
+// SSE イベント送信ヘルパー関数
+function broadcastSSEEvent(eventType, data) {
+  const event = {
+    type: eventType,
+    data: data,
+    timestamp: new Date().toISOString()
+  };
+
+  const eventString = `data: ${JSON.stringify(event)}\n\n`;
+  
+  sseClients.forEach(client => {
+    try {
+      if (client.connection && !client.connection.destroyed) {
+        client.write(eventString);
+      } else {
+        sseClients.delete(client);
+      }
+    } catch (error) {
+      logger.error(`Failed to send SSE event: ${error.message}`);
+      sseClients.delete(client);
+    }
+  });
+}
 
 // ヘルスチェックエンドポイント
 app.get('/health', (req, res) => {
@@ -30,6 +117,7 @@ app.get('/health', (req, res) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     browsers: browsers.size,
+    sseClients: sseClients.size,
     uptime: process.uptime()
   });
 });
@@ -204,6 +292,14 @@ async function launchBrowser(args = {}) {
     
     logger.info(`Browser launched successfully: ${browserId}`);
     
+    // SSE イベントをブロードキャスト
+    broadcastSSEEvent('browser_launched', {
+      browserId,
+      browserType,
+      headless,
+      message: `Browser launched successfully. Browser ID: ${browserId}`
+    });
+    
     return {
       browserId,
       message: `Browser launched successfully. Browser ID: ${browserId}`
@@ -225,6 +321,13 @@ async function navigateTo(args) {
   try {
     await browserData.page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
     logger.info(`Navigation successful: ${url}`);
+    
+    // SSE イベントをブロードキャスト
+    broadcastSSEEvent('navigation_completed', {
+      browserId,
+      url,
+      message: `Successfully navigated to: ${url}`
+    });
     
     return {
       url,
@@ -248,6 +351,13 @@ async function clickElement(args) {
     await browserData.page.click(selector, { timeout: 10000 });
     logger.info(`Element clicked: ${selector}`);
     
+    // SSE イベントをブロードキャスト
+    broadcastSSEEvent('element_clicked', {
+      browserId,
+      selector,
+      message: `Successfully clicked element: ${selector}`
+    });
+    
     return {
       selector,
       message: `Successfully clicked element: ${selector}`
@@ -269,6 +379,14 @@ async function typeText(args) {
   try {
     await browserData.page.fill(selector, text, { timeout: 10000 });
     logger.info(`Text typed into ${selector}: ${text}`);
+    
+    // SSE イベントをブロードキャスト
+    broadcastSSEEvent('text_typed', {
+      browserId,
+      selector,
+      text,
+      message: `Successfully typed text into: ${selector}`
+    });
     
     return {
       selector,
@@ -292,6 +410,14 @@ async function getText(args) {
   try {
     const text = await browserData.page.textContent(selector, { timeout: 10000 });
     logger.info(`Text retrieved from ${selector}: ${text}`);
+    
+    // SSE イベントをブロードキャスト
+    broadcastSSEEvent('text_retrieved', {
+      browserId,
+      selector,
+      text: text || 'No text found',
+      message: `Text content retrieved from ${selector}`
+    });
     
     return {
       selector,
@@ -324,6 +450,14 @@ async function takeScreenshot(args) {
     
     logger.info(`Screenshot saved: ${filename}`);
     
+    // SSE イベントをブロードキャスト
+    broadcastSSEEvent('screenshot_taken', {
+      browserId,
+      filename,
+      fullPage,
+      message: `Screenshot saved to: ${filename}`
+    });
+    
     return {
       filename,
       fullPage,
@@ -347,6 +481,12 @@ async function closeBrowser(args) {
     await browserData.browser.close();
     browsers.delete(browserId);
     logger.info(`Browser closed: ${browserId}`);
+    
+    // SSE イベントをブロードキャスト
+    broadcastSSEEvent('browser_closed', {
+      browserId,
+      message: `Successfully closed browser: ${browserId}`
+    });
     
     return {
       browserId,
@@ -394,4 +534,5 @@ app.listen(port, () => {
   logger.info(`Health check: http://localhost:${port}/health`);
   logger.info(`Tools list: http://localhost:${port}/tools`);
   logger.info(`Execute tools: POST http://localhost:${port}/tools/execute`);
+  logger.info(`SSE Events: http://localhost:${port}/events`);
 });
