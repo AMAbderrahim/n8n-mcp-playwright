@@ -26,11 +26,11 @@
 cd n8n-mcp-playwright
 
 # Docker Composeでサービスを起動
-docker-compose up -d
+docker compose up -d
 
 # 起動完了まで約5分待機 (初回はPlaywrightブラウザダウンロード)
 # ログで進行状況を確認
-docker-compose logs -f mcp-server
+docker compose logs -f mcp-server
 ```
 
 ### 3. アクセス確認
@@ -50,10 +50,10 @@ curl http://localhost:8080/tools
 
 ```bash
 # サービスを停止
-docker-compose down
+docker compose down
 
 # ボリュームも削除する場合 (データ完全削除)
-docker-compose down -v
+docker compose down -v
 ```
 
 ## 🛠️ 利用可能なPlaywrightツール
@@ -112,11 +112,11 @@ curl -X POST http://localhost:8080/tools/execute \
 
 ```bash
 # 全サービスの状態確認
-docker-compose ps
+docker compose ps
 
 # 各サービスのヘルスチェック
-docker-compose exec n8n curl -f http://localhost:5678
-docker-compose exec mcp-server curl -f http://localhost:8080/health
+docker compose exec n8n curl -f http://localhost:5678
+docker compose exec mcp-server curl -f http://localhost:8080/health
 
 # 現在稼働中のブラウザ一覧
 curl http://localhost:8080/browsers
@@ -154,33 +154,33 @@ free -h
 #### 4. Playwrightブラウザ起動失敗
 ```bash
 # コンテナを再作成 (ブラウザ再ダウンロード)
-docker-compose down
-docker-compose up -d --force-recreate mcp-server
+docker compose down
+docker compose up -d --force-recreate mcp-server
 ```
 
 #### 5. n8nが起動しない
 ```bash
 # n8nのログを確認
-docker-compose logs n8n
+docker compose logs n8n
 
 # データボリュームをリセット
-docker-compose down -v
-docker-compose up -d
+docker compose down -v
+docker compose up -d
 ```
 
 ### ログ確認方法
 
 ```bash
 # 全サービスのログ
-docker-compose logs
+docker compose logs
 
 # 特定サービスのログ
-docker-compose logs mcp-server
-docker-compose logs n8n
-docker-compose logs playwright
+docker compose logs mcp-server
+docker compose logs n8n
+docker compose logs playwright
 
 # リアルタイムログ監視
-docker-compose logs -f mcp-server
+docker compose logs -f mcp-server
 ```
 
 ## ⚙️ 設定カスタマイズ
@@ -254,7 +254,7 @@ echo "Browsers: $(curl -s http://localhost:8080/browsers | jq -r .count)"
 
 1. OS/環境情報
 2. Docker/Docker Composeバージョン
-3. `docker-compose logs`の出力
+3. `docker compose logs`の出力
 4. 再現手順
 
 ---
