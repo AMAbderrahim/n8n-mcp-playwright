@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   n8n:
-    image: n8nio/n8n:latest
+    image: n8nio/n8n
     container_name: n8n-main
     restart: unless-stopped
     # ⚠️ COOLIFY : Ne pas exposer les ports publiquement, Coolify gère le routage
