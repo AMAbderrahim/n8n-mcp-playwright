@@ -10,7 +10,6 @@ services:
     #   - "5678:5678"  # Commenté pour Coolify
     environment:
       - N8N_HOST=${N8N_DOMAIN}
-      - N8N_PORT=5678
       - N8N_PROTOCOL=https  # ✅ Changé en HTTPS pour Coolify
       # 🔹 Remplace par ton domaine Coolify (ex: n8n.tondomaine.com)
       - WEBHOOK_URL=https://n8n.dbyway.com
