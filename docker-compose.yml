@@ -13,7 +13,7 @@ services:
       - N8N_PORT=5678
       - N8N_PROTOCOL=https  # ✅ Changé en HTTPS pour Coolify
       # 🔹 Remplace par ton domaine Coolify (ex: n8n.tondomaine.com)
-      - WEBHOOK_URL=https://n8n.dbyway.com  
+      - WEBHOOK_URL=https://n8n.dbyway.com
       - N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true
       - N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN=true
       - NODE_OPTIONS=--max-old-space-size=2048
@@ -123,6 +123,5 @@ volumes:
     driver: local
 
 networks:
-  default:
-    name: n8n-mcp-network
+  n8n-mcp-network:
     driver: bridge
